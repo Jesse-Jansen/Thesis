@@ -52,33 +52,7 @@ The images are not part of this repository.
   research use agreement: <https://ddi-dataset.github.io>. The agreement does not allow
   redistribution, so the DDI images, the metadata and the predictions per image are not included here.
 
-Expected layout, with this repository inside the project folder:
 
-```
-<project>/
-    fitzpatrick17k.csv
-    data/finalfitz17k/<md5hash>.jpg       Fitzpatrick17k images
-    binary_experiment_splits/             written by make_splits.py
-    <this repository>/
-<project>/../ddi_thesis_data/
-    ddi_metadata.csv
-    images/000001.png ...
-```
-
-Other locations can be set with environment variables, or in a file `local_paths.json` next to
-`analysis.py` (this file is not tracked by git):
-
-```json
-{"THESIS_EXPERIMENTS_DIR": "D:/runs/thesis_experiments"}
-```
-
-| Setting | Meaning | Default |
-|---|---|---|
-| `THESIS_EXPERIMENTS_DIR` | folder that holds the run folders (`01_baseline/seed_42`, ...) | this repository |
-| `FITZPATRICK17K_DIR` | project folder with the data and the splits | parent of `THESIS_EXPERIMENTS_DIR` |
-| `DDI_DIR` | DDI folder | `<project>/../ddi_thesis_data` |
-
-The result tables and figures are always written to `summary/` and `figures/` in this repository.
 
 ## Setup
 
@@ -89,49 +63,10 @@ pip install -r requirements.txt
 ```
 
 The experiments were run with PyTorch 2.8.0 and CUDA 12.6 on an NVIDIA RTX A1000 laptop GPU.
-Install the PyTorch build that matches your GPU first if needed, see <https://pytorch.org>.
 
-## Reproducing the results
 
-1. `python make_splits.py` creates the train, validation and test split (3,024 / 648 / 648 images).
-   The split is fixed: `analysis.load_splits()` checks the SHA-256 of the three files.
-2. Run the notebooks `01` to `06`. Each one trains its three seeds, about 30 to 50 minutes per
-   seed. Finished seeds are skipped, so a notebook can be restarted after an interruption.
-3. Run `00_aggregate_results.ipynb` for the tables of the Fitzpatrick17k test set.
-4. Run `07_ddi_external_evaluation.ipynb` for the predictions and tables on DDI.
-5. `python threshold_analysis.py` and `python stricter_interval_check.py` for the follow-up analyses.
-6. `python make_results.py` for the figure and the LaTeX tables.
 
-Steps 3 to 6 need no GPU once the predictions exist.
 
-## What a run saves
-
-Each run writes to `<condition folder>/seed_<n>/`:
-
-- `config.json`: all settings, package versions and the GPU
-- `training_weight_table.csv`: the loss weights (weighted conditions only)
-- `stage1_training_history.csv`, `stage2_training_history.csv`: loss and validation metrics per epoch
-- `<condition>_seed<n>_resnet50_binary.pt`: the selected checkpoint, and `checkpoint_selection.json` with its SHA-256
-- `val_predictions.csv`, `test_predictions.csv`: predicted probability per image
-- `test_metrics.csv`, `test_results_by_fst_group.csv`, `test_disparities.csv`: test results for a
-  threshold of 0.5 and for the Youden threshold chosen on the validation set
-- `ddi_predictions.csv`: added by notebook 07
-- `run_complete.json`: written last, marks the run as finished
-
-The run folders are not in this repository (see `.gitignore`). The checkpoints are large, and the
-prediction files contain metadata of the datasets.
-
-## Statistics
-
-The reported AUC is the mean over the three seeds. Intervals are 95% percentile intervals from
-2,000 bootstrap resamples of the test images, stratified by FST group and label. Every
-intervention is compared with the baseline on the same resamples (paired differences). A
-difference is called reliable when its interval excludes zero.
-
-## Use of AI
-
-Parts of the code were written and debugged with the help of Claude (Anthropic). This is described
-in the DSECT statement of the thesis. The author reviewed the code and is responsible for it.
 
 ## References
 
