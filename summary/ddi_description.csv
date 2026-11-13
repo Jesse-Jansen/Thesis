@@ -1,0 +1,5 @@
+fst_group,n,n_malignant,n_non_neoplastic,n_after_exclusion
+FST 1-2,208,49,30,178
+FST 3-4,241,74,17,224
+FST 5-6,207,48,42,165
+All,656,171,89,567

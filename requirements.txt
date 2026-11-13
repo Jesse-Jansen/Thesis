@@ -1,0 +1,12 @@
+# Versions that were used for the thesis (Python 3.11.15).
+torch==2.8.0
+torchvision==0.23.0
+numpy==2.4.6
+pandas==3.0.6
+scikit-learn==1.9.1
+matplotlib==3.11.2
+pillow==12.3.0
+tqdm==4.70.1
+# For running the notebooks.
+jupyter
+ipywidgets

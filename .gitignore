@@ -1,0 +1,17 @@
+# Run folders: checkpoints (about 100 MB each) and predictions per image
+seed_*/
+*.pt
+
+# Datasets, in case they are placed inside the repository
+data/
+binary_experiment_splits/
+fitzpatrick17k.csv
+ddi_thesis_data/
+
+# Machine-specific folder settings
+local_paths.json
+
+# Python and Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
