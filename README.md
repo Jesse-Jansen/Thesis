@@ -38,6 +38,7 @@ is the epoch with the highest validation AUC. Seeds 42, 43 and 44, deterministic
 | `07_ddi_external_evaluation.ipynb` | Result tables for DDI. |
 | `threshold_analysis.py` | Sensitivity and specificity per FST group at a threshold chosen on validation data. |
 | `stricter_interval_check.py` | 99% intervals for the effect of universal colour augmentation on DDI. |
+| `confusion_matrices.py` | Confusion matrices per FST group at the validation-chosen threshold (Fig. 1 and Fig. A3 of the thesis). |
 | `make_results.py` | Figure and LaTeX tables for the thesis, built from `summary/`. |
 | `summary/`, `figures/` | The result tables and the figure that are reported in the thesis. |
 
