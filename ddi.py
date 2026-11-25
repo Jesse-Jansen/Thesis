@@ -1,15 +1,4 @@
-"""External evaluation on the Diverse Dermatology Images (DDI) dataset.
 
-Every model trained on Fitzpatrick17k is scored on all 656 DDI images. No DDI
-image is used for training, model selection or choosing a threshold. The
-sensitivity analysis repeats the evaluation without the non-neoplastic images.
-
-DDI has to be requested from the Stanford AIMI Center and is not part of this
-repository. Expected layout:
-
-    <DDI_DIR>/ddi_metadata.csv
-    <DDI_DIR>/images/000001.png, ...
-"""
 from pathlib import Path
 
 import numpy as np
