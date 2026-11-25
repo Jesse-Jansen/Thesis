@@ -1,0 +1,33 @@
+section,statistic,value
+dataset,images,16577.0
+dataset,conditions,114.0
+dataset,images non-neoplastic,12080.0
+dataset,images malignant,2263.0
+dataset,images benign,2234.0
+dataset,images without skin-type label,565.0
+dataset,share of labelled images FST 1-2 (%),48.4
+dataset,share of labelled images FST 3-4 (%),38.0
+dataset,share of labelled images FST 5-6 (%),13.5
+subset,benign or malignant images without skin-type label,177.0
+subset,images,4320.0
+subset,benign,2160.0
+subset,malignant,2160.0
+subset,images FST 1-2,2310.0
+subset,share FST 1-2 (%),53.5
+subset,images FST 3-4,1599.0
+subset,share FST 3-4 (%),37.0
+subset,images FST 5-6,411.0
+subset,share FST 5-6 (%),9.5
+split,train images,3024.0
+split,val images,648.0
+split,test images,648.0
+split,train images FST V-VI,288.0
+split,test FST 1-2 benign,167.0
+split,test FST 1-2 malignant,180.0
+split,test FST 3-4 benign,127.0
+split,test FST 3-4 malignant,113.0
+split,test FST 5-6 benign,30.0
+split,test FST 5-6 malignant,31.0
+images,median width (pixels),452.0
+images,median height (pixels),377.5
+images,images smaller than 256 on one side,400.0
