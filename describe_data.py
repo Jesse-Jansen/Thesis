@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 
@@ -15,7 +14,6 @@ def describe():
         rows.append({"section": section, "statistic": statistic, "value": value})
         print(f"{section:12s} {statistic:52s} {value}")
 
-    # The full dataset.
     full = pd.read_csv(make_splits.METADATA)
     add("dataset", "images", len(full))
     add("dataset", "conditions", full["label"].nunique())
@@ -27,7 +25,6 @@ def describe():
     for group in A.FST_GROUPS:
         add("dataset", f"share of labelled images {group} (%)", round(100 * shares[group], 1))
 
-    # The benign and malignant images that were used.
     neoplasms = full["three_partition_label"].isin(["benign", "malignant"])
     add("subset", "benign or malignant images without skin-type label", int((neoplasms & unlabelled).sum()))
     subset = make_splits.select_images()
@@ -39,7 +36,6 @@ def describe():
         add("subset", f"images {group}", int(counts[group]))
         add("subset", f"share {group} (%)", round(100 * counts[group] / len(subset), 1))
 
-    # The split.
     train, val, test, _ = A.load_splits(check_images=False)
     for name, part in [("train", train), ("val", val), ("test", test)]:
         add("split", f"{name} images", len(part))
@@ -48,7 +44,7 @@ def describe():
         for label, name in [(0, "benign"), (1, "malignant")]:
             add("split", f"test {group} {name}", int(((test.fst_group == group) & (test.binary_label == label)).sum()))
 
-    # Image sizes (only when the images are available).
+    # image sizes, only if the images are available
     paths = [A.IMAGE_DIR / f"{h}.jpg" for h in subset.md5hash]
     if all(p.is_file() for p in paths):
         from PIL import Image

@@ -1,14 +1,7 @@
-"""Training code that is shared by all six conditions.
-
-Every condition notebook calls run_condition(). A condition only changes the
-colour mode and the sample weighting (see analysis.CONDITIONS). The model, the
-training schedule, the checkpoint selection and the evaluation are the same for
-all of them, so that a difference between two conditions can be attributed to
-the intervention.
-"""
+"""Model, augmentation, two-stage training and evaluation of one run."""
 import os
 
-# Needed for deterministic cuBLAS operations. Has to be set before CUDA is initialised.
+# needed for deterministic cuBLAS, set before CUDA starts
 os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 
 import copy
@@ -36,12 +29,6 @@ import analysis as A
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# ---------------------------------------------------------------------------
-# Hyper-parameters, the same for every condition
-# ---------------------------------------------------------------------------
-# This dictionary is saved in config.json of every run. Stage 2 has no early
-# stopping (patience None): it always runs all epochs and the epoch with the
-# highest validation AUC is kept.
 HP = {
     "batch_size": 32,
     "num_workers": 0,
@@ -57,9 +44,7 @@ HP = {
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
-# Training images: spatial augmentation, then (for some conditions) colour jitter,
-# then conversion to a normalised tensor. The colour jitter sits in between, which
-# is why the training pipeline is split into two parts.
+# training: spatial augmentation, optional colour jitter, then tensor
 spatial_transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
@@ -69,7 +54,6 @@ tensor_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
 ])
-# Validation, test and DDI images: no augmentation.
 eval_transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.CenterCrop(224),
@@ -79,13 +63,7 @@ eval_transform = transforms.Compose([
 
 
 class RandomColourJitter:
-    """Mild brightness, saturation and hue jitter that is applied with probability p.
-
-    Brightness and saturation are multiplied by a random factor between 0.7 and
-    1.3. A hue setting of 0.05 shifts the hue by at most 18 degrees in either
-    direction. Contrast is left alone. The random numbers come from the torch
-    generator, so the augmentation is reproducible for a given run seed.
-    """
+    """Mild brightness, saturation and hue jitter that is applied with probability p."""
 
     def __init__(self, brightness=0.3, saturation=0.3, hue=0.05, p=0.5):
         self.p = p
@@ -106,7 +84,7 @@ colour_jitter = RandomColourJitter(
 
 
 def colour_eligible(colour_mode, fitzpatrick_scale):
-    """Whether an image with this skin type may receive colour jitter in the given mode."""
+    """Whether an image of this skin type gets colour jitter in the given mode."""
     if colour_mode == "none":
         return False
     if colour_mode == "universal":
@@ -117,12 +95,7 @@ def colour_eligible(colour_mode, fitzpatrick_scale):
 
 
 class FitzpatrickDataset(Dataset):
-    """Fitzpatrick17k images with their label and loss weight.
-
-    Each item is (image, label, sample_weight). With training=True the spatial
-    augmentation is applied, plus the colour jitter for eligible images. For
-    validation and test data no augmentation and no weights are allowed.
-    """
+    """Fitzpatrick17k images with their label and loss weight."""
 
     def __init__(self, dataframe, training=False, colour_mode="none", sample_weight=None):
         self.df = dataframe.reset_index(drop=True).copy()
@@ -153,11 +126,7 @@ class FitzpatrickDataset(Dataset):
 
 
 class BinaryResNet50(nn.Module):
-    """ResNet-50 pretrained on ImageNet with a small head for benign versus malignant.
-
-    The original classification layer is replaced by 2048-256-1 with ReLU and
-    dropout. The model returns one logit per image.
-    """
+    """ResNet-50 pretrained on ImageNet with a small head for benign versus malignant."""
 
     def __init__(self):
         super().__init__()
@@ -175,9 +144,6 @@ class BinaryResNet50(nn.Module):
         return self.head(self.backbone(x)).squeeze(1)
 
 
-# ---------------------------------------------------------------------------
-# Reproducibility
-# ---------------------------------------------------------------------------
 def set_seed(seed):
     """Seed Python, NumPy and PyTorch and switch cuDNN to deterministic mode."""
     random.seed(seed)
@@ -189,20 +155,12 @@ def set_seed(seed):
     torch.use_deterministic_algorithms(True, warn_only=True)
 
 
-# ---------------------------------------------------------------------------
-# Training and evaluation loops
-# ---------------------------------------------------------------------------
 def run_epoch(model, loader, optimizer=None, desc=""):
-    """One pass over the loader. Trains when an optimizer is given, otherwise evaluates.
-
-    The training loss is the mean of weight * binary cross-entropy. The
-    evaluation loss is the plain binary cross-entropy, so validation losses can
-    be compared between weighted and unweighted conditions.
-    """
+    """One epoch. Trains when an optimizer is given, otherwise evaluates."""
     training = optimizer is not None
     model.train() if training else model.eval()
     if training and not any(p.requires_grad for p in model.backbone.parameters()):
-        # Stage 1: the backbone is frozen, so its BatchNorm statistics should not be updated either.
+        # keep BatchNorm statistics of the frozen backbone fixed
         model.backbone.eval()
     total_loss, n = 0.0, 0
     labels_all, probs_all = [], []
@@ -251,18 +209,8 @@ def _log_epoch(stage, epoch, tr, va, extra=""):
 
 
 def train_two_stage(model, train_loader, val_loader, run_dir, checkpoint_path):
-    """Train the model in two stages and leave the best stage-2 weights loaded.
-
-    Stage 1 trains only the head on top of the frozen backbone, with early
-    stopping on the validation AUC. Stage 2 starts from the best stage-1 weights
-    and fine-tunes layer4 together with the head for a fixed number of epochs
-    with cosine annealing. The epoch with the highest validation AUC is written
-    to checkpoint_path. The training history of both stages is saved in run_dir
-    after every epoch.
-
-    Returns the best epoch and its validation AUC for both stages.
-    """
-    # Stage 1: frozen backbone, only the head is trained.
+    """Train the model in two stages and leave the best stage-2 weights loaded."""
+    # stage 1: head only
     s1 = HP["stage1"]
     for p in model.backbone.parameters():
         p.requires_grad = False
@@ -284,7 +232,7 @@ def train_two_stage(model, train_loader, val_loader, run_dir, checkpoint_path):
             break
     model.load_state_dict(best1_state)
 
-    # Stage 2: layer4 and the head are trained, the rest of the backbone stays frozen.
+    # stage 2: layer4 and head
     s2 = HP["stage2"]
     for p in model.backbone.parameters():
         p.requires_grad = False
@@ -296,9 +244,7 @@ def train_two_stage(model, train_loader, val_loader, run_dir, checkpoint_path):
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=s2["max_epochs"])
 
     def keep_frozen_backbone_eval(backbone, inputs):
-        # model.train() puts every layer in training mode. The frozen layers are set
-        # back to eval mode before each forward pass, so their BatchNorm statistics
-        # keep the ImageNet values.
+        # keep BatchNorm statistics of the frozen layers fixed
         for index, module in enumerate(backbone):
             if index != 7:
                 module.eval()
@@ -323,7 +269,6 @@ def train_two_stage(model, train_loader, val_loader, run_dir, checkpoint_path):
                 wait += 1
                 _log_epoch("Stage 2", epoch, tr, va, f"  (best is still epoch {best2_epoch}, val AUC={best2:.4f})")
             scheduler.step()
-            # Only relevant when a patience is set for stage 2. It is None in HP.
             if s2["patience"] is not None and wait >= s2["patience"]:
                 break
     finally:
@@ -336,22 +281,12 @@ def train_two_stage(model, train_loader, val_loader, run_dir, checkpoint_path):
             "stage2_best_epoch": int(best2_epoch), "stage2_best_val_auc": float(best2)}
 
 
-# ---------------------------------------------------------------------------
-# One complete run: train, select, evaluate, save
-# ---------------------------------------------------------------------------
 def run_condition(condition, seed, overwrite=False):
-    """Train and evaluate one condition with one seed.
-
-    Everything is written to <condition folder>/seed_<seed>/ (the README lists
-    the files). A run that already finished is skipped unless overwrite=True, so
-    a notebook can simply be started again after an interruption. Returns the run
-    folder.
-    """
+    """Train and evaluate one condition with one seed."""
     spec = A.CONDITIONS[condition]
     run_dir = A.condition_dir(condition) / f"seed_{seed}"
     marker = run_dir / "run_complete.json"
     if marker.is_file() and not overwrite:
-        # Do not mix runs that were trained with different settings without noticing.
         saved = json.loads((run_dir / "config.json").read_text())
         if saved.get("stage1") != HP["stage1"] or saved.get("stage2") != HP["stage2"]:
             raise RuntimeError(
@@ -373,7 +308,6 @@ def run_condition(condition, seed, overwrite=False):
         weight_table.to_csv(run_dir / "training_weight_table.csv", index=False)
         print(weight_table.to_string(index=False))
 
-    # Full record of the settings of this run.
     config = {
         "condition": condition, "seed": seed, "description": spec["description"],
         "colour_mode": spec["colour_mode"], "weighting": spec["weighting"],
@@ -399,7 +333,6 @@ def run_condition(condition, seed, overwrite=False):
     }
     (run_dir / "config.json").write_text(json.dumps(config, indent=2))
 
-    # The generator fixes the order in which the training images are shuffled.
     generator = torch.Generator().manual_seed(seed)
     pin = DEVICE == "cuda"
     train_loader = DataLoader(
@@ -416,12 +349,10 @@ def run_condition(condition, seed, overwrite=False):
     selection["checkpoint_sha256"] = hashlib.sha256(checkpoint_path.read_bytes()).hexdigest()
     (run_dir / "checkpoint_selection.json").write_text(json.dumps(selection, indent=2))
 
-    # The checkpoint is loaded from disk again before the evaluation, so the
-    # reported results belong to the saved file and not to the model in memory.
+    # evaluate the saved checkpoint, not the model in memory
     model.load_state_dict(torch.load(checkpoint_path, map_location=DEVICE, weights_only=True))
     val_pred = predict(model, val_df)
     test_pred = predict(model, test_df)
-    # The Youden threshold comes from the validation predictions and is then applied to the test set.
     thr = A.youden_threshold(val_pred.binary_label, val_pred.predicted_prob)
     thresholds = {"fixed_0.5": A.FIXED_THRESHOLD, "val_youden": thr}
     for name, t in thresholds.items():
@@ -434,7 +365,7 @@ def run_condition(condition, seed, overwrite=False):
     by_group.to_csv(run_dir / "test_results_by_fst_group.csv", index=False)
     gaps.to_csv(run_dir / "test_disparities.csv", index=False)
 
-    # Written last. Its presence marks the run as finished.
+    # written last, marks the run as finished
     minutes = (time.time() - started) / 60
     record = {"condition": condition, "seed": seed, "checkpoint_sha256": selection["checkpoint_sha256"],
               "test_split_sha256": split_hashes["test"], "val_youden_threshold": thr,
@@ -472,15 +403,8 @@ def summarise_condition(condition):
     return table
 
 
-# ---------------------------------------------------------------------------
-# Augmentation preview (Figure A1 of the thesis)
-# ---------------------------------------------------------------------------
 def save_augmentation_preview(condition, n_images=8, seed=0):
-    """Save a grid of FST V-VI training images with three jittered versions of each.
-
-    The top row shows the original images. In the rows below the jitter is always
-    applied, to show what it does. During training it is applied with probability 0.5.
-    """
+    """Save a grid of FST V-VI training images with three jittered versions of each."""
     import matplotlib.pyplot as plt
 
     train_df, _, _, _ = A.load_splits(check_images=False)

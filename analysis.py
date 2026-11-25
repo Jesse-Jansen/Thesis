@@ -1,11 +1,4 @@
-"""Shared helpers that do not need a GPU.
-
-Contains the experiment configuration (paths, conditions), the split checks,
-the two reweighting schemes, the metrics and the aggregation over seeds
-including the bootstrap. It is imported by training.py, ddi.py and the
-notebooks. Nothing in this file needs PyTorch, so the result tables can be
-rebuilt on a machine without a GPU.
-"""
+"""Paths, conditions, split checks, sample weights, metrics and the bootstrap."""
 import hashlib
 import json
 import os
@@ -16,16 +9,7 @@ import pandas as pd
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, roc_auc_score, roc_curve
 
 
-# Paths
-
-# Expected layout (the defaults assume this repository sits inside the project folder):
-#
-#   <project>/data/finalfitz17k/           Fitzpatrick17k images, named <md5hash>.jpg
-#   <project>/binary_experiment_splits/    train.csv, val.csv, test.csv (see make_splits.py)
-#   <project>/<this repository>/           code, summary/ and figures/; by default also the run folders
-#
-# If your folders are somewhere else, set the environment variables used below, or
-# put them in a file local_paths.json next to this file (see the README).
+# Folders can be changed with environment variables or local_paths.json.
 REPO_DIR = Path(__file__).resolve().parent
 
 
@@ -41,17 +25,14 @@ def path_setting(name, default):
     return Path(default)
 
 
-# Where the run folders  are read from and written to.
 EXPERIMENTS_DIR = path_setting("THESIS_EXPERIMENTS_DIR", REPO_DIR)
 PROJECT_DIR = path_setting("FITZPATRICK17K_DIR", EXPERIMENTS_DIR.parent)
 IMAGE_DIR = PROJECT_DIR / "data" / "finalfitz17k"
 SPLIT_DIR = PROJECT_DIR / "binary_experiment_splits"
-# Result tables and figures always go into the repository.
 SUMMARY_DIR = REPO_DIR / "summary"
 FIGURES_DIR = REPO_DIR / "figures"
 
-# SHA-256 of the three split files. load_splits() checks them, so every condition
-# and every seed is trained and tested on exactly the same images.
+# SHA-256 of the split files, checked by load_splits().
 EXPECTED_SPLIT_SHA256 = {
     "train": "064fdbe82d9f917817dcf5017d5c307f20f32861142620375b1277a44e490939",
     "val": "ef892fa647000e63fd2c2f212505b06ad6bf3b70be864d6d84ee483c2216e0ab",
@@ -63,8 +44,6 @@ TARGET_FST_TYPES = (5, 6)  # skin types that get the targeted colour augmentatio
 DEFAULT_SEEDS = [42, 43, 44]
 FIXED_THRESHOLD = 0.5
 
-# The six conditions of the thesis. A condition only sets the colour mode and the
-# loss weighting, everything else is shared (see training.HP).
 CONDITIONS = {
     "baseline": {
         "folder": "01_baseline",
@@ -104,9 +83,7 @@ CONDITIONS = {
     },
 }
 
-# Statistics computed for every model in the bootstrap, in this order.
 AUC_STATS = ["auc", "auc_fst_1_2", "auc_fst_3_4", "auc_fst_5_6", "auc_gap_max_min", "auc_gap_1_2_minus_5_6"]
-# The subset that is reported in the thesis tables.
 REPORTED_STATS = ["auc", "auc_fst_1_2", "auc_fst_3_4", "auc_fst_5_6", "auc_gap_1_2_minus_5_6"]
 
 
@@ -115,9 +92,6 @@ def condition_dir(condition):
     return EXPERIMENTS_DIR / CONDITIONS[condition]["folder"]
 
 
-# ---------------------------------------------------------------------------
-# Splits
-# ---------------------------------------------------------------------------
 def add_fst_group(frame):
     """Add the column fst_group (FST 1-2, 3-4 or 5-6) based on fitzpatrick_scale."""
     frame = frame.copy()
@@ -128,14 +102,7 @@ def add_fst_group(frame):
 
 
 def load_splits(split_dir=SPLIT_DIR, image_dir=IMAGE_DIR, check_images=True):
-    """Load the train, validation and test split and check that they are usable.
-
-    The checks cover the file hashes, the labels, the skin types, overlap between
-    the splits and (optionally) whether every image file exists.
-
-    Returns (train, val, test, hashes), where hashes maps the split name to the
-    SHA-256 of its csv file.
-    """
+    """Load the train, validation and test split and check that they are usable."""
     split_dir, image_dir = Path(split_dir), Path(image_dir)
     frames, hashes = {}, {}
     for name in ["train", "val", "test"]:
@@ -163,19 +130,8 @@ def load_splits(split_dir=SPLIT_DIR, image_dir=IMAGE_DIR, check_images=True):
     return frames["train"], frames["val"], frames["test"], hashes
 
 
-# ---------------------------------------------------------------------------
-# Sample weights (always computed from the training split only)
-# ---------------------------------------------------------------------------
 def effective_number_weights(train_df, beta=0.999, group_col="fst_group"):
-    """Effective-number weights per FST group (Cui et al., 2019).
-
-    The weight of group g is proportional to (1 - beta) / (1 - beta ** n_g), with
-    n_g the number of training images in that group. The weights are rescaled so
-    that the mean weight over all training images is 1. This keeps the size of the
-    loss, and with it the effective learning rate, comparable to the baseline.
-
-    Returns the weight per training image and a small table for the logs.
-    """
+    """Effective-number weights per FST group (Cui et al., 2019)."""
     counts = train_df[group_col].value_counts().reindex(FST_GROUPS)
     assert counts.notna().all() and (counts > 0).all()
     raw = (1.0 - beta) / (1.0 - np.power(beta, counts.astype(float)))
@@ -193,14 +149,7 @@ def effective_number_weights(train_df, beta=0.999, group_col="fst_group"):
 
 
 def kamiran_weights(train_df):
-    """Reweighing of Kamiran & Calders (2012) over skin type (1-6) and label.
-
-    w(s, y) = n_s * n_y / (N * n_sy). With these weights skin type and label are
-    statistically independent in the weighted training set. The mean weight is 1
-    by construction.
-
-    Returns the weight per training image and a table with the weight per cell.
-    """
+    """Reweighing of Kamiran & Calders (2012) over skin type (1-6) and label."""
     counts = pd.crosstab(train_df.fitzpatrick_scale, train_df.binary_label).reindex(
         index=range(1, 7), columns=[0, 1], fill_value=0
     )
@@ -236,14 +185,8 @@ def make_sample_weights(train_df, weighting):
     return weights, table
 
 
-# ---------------------------------------------------------------------------
-# Metrics
-# ---------------------------------------------------------------------------
 def youden_threshold(y_true, y_prob):
-    """Threshold that maximises Youden's index (sensitivity + specificity - 1).
-
-    Always call this with validation data, never with test data.
-    """
+    """Threshold that maximises Youden's index (sensitivity + specificity - 1)."""
     fpr, tpr, thresholds = roc_curve(y_true, y_prob)
     best = np.argmax(tpr - fpr)
     return float(min(thresholds[best], 1.0))
@@ -274,12 +217,7 @@ def calculate_metrics(y_true, y_prob, threshold):
 
 
 def evaluate_predictions(test_pred, thresholds):
-    """Metrics for the whole test set, per FST group, and the gaps between groups.
-
-    thresholds is a dict with one entry per threshold rule, for example
-    {"fixed_0.5": 0.5, "val_youden": 0.43}. Returns three tables: overall,
-    per FST group, and the differences between the groups.
-    """
+    """Metrics for the whole test set, per FST group, and the gaps between groups."""
     overall, by_group, gaps = [], [], []
     for rule, thr in thresholds.items():
         overall.append({"threshold_rule": rule, **calculate_metrics(test_pred.binary_label, test_pred.predicted_prob, thr)})
@@ -301,14 +239,8 @@ def evaluate_predictions(test_pred, thresholds):
     return pd.DataFrame(overall), pd.DataFrame(by_group), pd.DataFrame(gaps)
 
 
-# ---------------------------------------------------------------------------
-# Collecting the finished runs
-# ---------------------------------------------------------------------------
 def completed_runs(experiments_dir=EXPERIMENTS_DIR):
-    """Table with one row per finished run: condition, seed and run folder.
-
-    A run counts as finished when run_complete.json exists in its folder.
-    """
+    """Table with one row per finished run: condition, seed and run folder."""
     runs = []
     for condition, spec in CONDITIONS.items():
         folder = Path(experiments_dir) / spec["folder"]
@@ -319,7 +251,7 @@ def completed_runs(experiments_dir=EXPERIMENTS_DIR):
 
 
 def finished_runs():
-    """Like completed_runs(), but stops with a clear message when there are no finished runs."""
+    """completed_runs(), but raises an error when no runs are found."""
     runs = completed_runs()
     if runs.empty:
         raise FileNotFoundError(
@@ -368,13 +300,7 @@ def seed_summary(per_run):
 
 
 def load_seed_predictions(runs, filename, id_column, reference="baseline"):
-    """Stack the predicted probabilities of all conditions and seeds.
-
-    Only conditions that have every seed of the reference condition are used.
-    Returns (conditions, seeds, base, probs). base is the prediction file of the
-    first run and is used for the labels and groups, probs has the shape
-    (n_conditions, n_seeds, n_images).
-    """
+    """Stack the predicted probabilities of all conditions and seeds."""
     conditions = [c for c in CONDITIONS if c in set(runs.condition)]
     seeds = sorted(set(runs[runs.condition == reference].seed))
     conditions = [c for c in conditions if set(runs[runs.condition == c].seed) >= set(seeds)]
@@ -392,16 +318,8 @@ def load_seed_predictions(runs, filename, id_column, reference="baseline"):
     return conditions, seeds, base, np.array(stacks)
 
 
-# ---------------------------------------------------------------------------
-# Bootstrap of the seed-averaged AUC
-# ---------------------------------------------------------------------------
 def auc_stats(y, groups, probs, idx):
-    """The six AUC statistics for every condition and seed on the images in idx.
-
-    Per model: overall AUC, AUC of the three FST groups, the largest gap between
-    groups and the gap FST I-II minus FST V-VI (the order of AUC_STATS).
-    probs has the shape (n_conditions, n_seeds, n_images).
-    """
+    """The six AUC statistics for every condition and seed on the images in idx."""
     out = np.empty(probs.shape[:2] + (6,))
     yi, gi = y[idx], groups[idx]
     masks = [gi == grp for grp in FST_GROUPS]
@@ -414,16 +332,7 @@ def auc_stats(y, groups, probs, idx):
 
 
 def bootstrap_auc(y, groups, probs, n_boot=2000, rng_seed=0):
-    """Stratified bootstrap of the seed-averaged AUC statistics.
-
-    Images are resampled with replacement within each FST group x label stratum,
-    so every resample has the same composition as the original set. All
-    conditions and seeds are scored on the same resample, which makes the
-    comparison between conditions paired.
-
-    Returns (point, boots): the estimates on the full set, shape (n_conditions, 6),
-    and the bootstrap replicates, shape (n_boot, n_conditions, 6).
-    """
+    """Stratified bootstrap of the seed-averaged AUC statistics."""
     point = auc_stats(y, groups, probs, np.arange(len(y))).mean(axis=1)
     strata = [np.where((groups == grp) & (y == c))[0] for grp in FST_GROUPS for c in (0, 1)]
     rng = np.random.default_rng(rng_seed)
@@ -435,14 +344,7 @@ def bootstrap_auc(y, groups, probs, n_boot=2000, rng_seed=0):
 
 
 def summarise_bootstrap(conditions, point, boots, reference="baseline", extra=None):
-    """Turn the bootstrap replicates into two tables with 95% percentile intervals.
-
-    estimates:   one row per condition with the value and interval of each statistic.
-    differences: one row per condition except the reference, with the paired
-                 difference (condition minus reference), its interval and whether
-                 that interval excludes zero.
-    extra holds columns that are the same for every condition (e.g. n_seeds).
-    """
+    """Turn the bootstrap replicates into two tables with 95% percentile intervals."""
     ref = conditions.index(reference)
     estimates, differences = [], []
     for i, condition in enumerate(conditions):
@@ -462,10 +364,7 @@ def summarise_bootstrap(conditions, point, boots, reference="baseline", extra=No
 
 
 def bootstrap_over_seeds(runs, n_boot=2000, rng_seed=0, reference="baseline"):
-    """Bootstrap intervals on the Fitzpatrick17k test set for all finished conditions.
-
-    Returns the two tables of summarise_bootstrap().
-    """
+    """Bootstrap intervals on the Fitzpatrick17k test set for all finished conditions."""
     conditions, seeds, base, probs = load_seed_predictions(runs, "test_predictions.csv", "md5hash", reference)
     y = base.binary_label.to_numpy()
     groups = add_fst_group(base).fst_group.to_numpy()
@@ -473,9 +372,6 @@ def bootstrap_over_seeds(runs, n_boot=2000, rng_seed=0, reference="baseline"):
     return summarise_bootstrap(conditions, point, boots, reference, extra={"n_seeds": len(seeds)})
 
 
-# ---------------------------------------------------------------------------
-# Tables for reading (the csv files keep the full precision)
-# ---------------------------------------------------------------------------
 def format_ci_table(estimates):
     """Estimates as 'value [low, high]' strings."""
     out = estimates[["condition"]].copy()

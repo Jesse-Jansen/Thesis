@@ -29,19 +29,19 @@ is the epoch with the highest validation AUC. Seeds 42, 43 and 44, deterministic
 
 | File | What it does |
 |---|---|
-| `analysis.py` | Paths, conditions, split checks, the two reweighting schemes, metrics, aggregation over seeds and the bootstrap. Needs no GPU. |
-| `training.py` | Model, augmentation, two-stage training and the evaluation of one run. |
-| `ddi.py` | Predictions and analysis on DDI, including the sensitivity analysis. |
-| `make_splits.py` | Creates the 70/15/15 split from the Fitzpatrick17k metadata. |
-| `01_…` to `06_…` | One notebook per condition. It trains the three seeds. |
+| `analysis.py` | Paths, conditions, split checks, sample weights, metrics and the bootstrap. |
+| `training.py` | Model, augmentation and training of one run. |
+| `ddi.py` | Predictions and analysis on DDI. |
+| `make_splits.py` | 70/15/15 split of the Fitzpatrick17k metadata. |
+| `01_…` to `06_…` | One notebook per condition, trains the three seeds. |
 | `00_aggregate_results.ipynb` | Result tables for the Fitzpatrick17k test set. |
 | `07_ddi_external_evaluation.ipynb` | Result tables for DDI. |
-| `threshold_analysis.py` | Sensitivity and specificity per FST group at a threshold chosen on validation data. |
-| `stricter_interval_check.py` | 99% intervals for the effect of universal colour augmentation on DDI. |
-| `confusion_matrices.py` | Confusion matrices per FST group at the validation-chosen threshold (Fig. A3 and Fig. A4 of the thesis). |
-| `describe_data.py` | Dataset statistics reported in the thesis: dataset size, label groups, skin-type distribution, the subset and split sizes, and the image sizes. |
-| `make_results.py` | Figure and LaTeX tables for the thesis, built from `summary/`. |
-| `summary/`, `figures/` | The result tables and figures that are reported in the thesis. Fig. A1 (augmentation examples) is saved in the folder of the colour conditions by `training.save_augmentation_preview()`. |
+| `threshold_analysis.py` | Sensitivity and specificity per FST group (Table A5, A6). |
+| `stricter_interval_check.py` | 99% intervals for universal colour augmentation on DDI. |
+| `confusion_matrices.py` | Confusion matrices per FST group (Fig. A3, A4). |
+| `describe_data.py` | Dataset statistics reported in the thesis. |
+| `make_results.py` | LaTeX tables and Fig. A2 from `summary/`. |
+| `summary/`, `figures/` | Results and figures. Fig. A1 is made by `training.save_augmentation_preview()`. |
 
 ## Data
 
@@ -54,8 +54,6 @@ The images are not part of this repository.
   research use agreement: <https://ddi-dataset.github.io>. The agreement does not allow
   redistribution, so the DDI images, the metadata and the predictions per image are not included here.
 
-
-
 ## Setup
 
 Python 3.11 with the packages in `requirements.txt`:
@@ -65,10 +63,6 @@ pip install -r requirements.txt
 ```
 
 The experiments were run with PyTorch 2.8.0 and CUDA 12.6 on an NVIDIA RTX A1000 laptop GPU.
-
-
-
-
 
 ## References
 

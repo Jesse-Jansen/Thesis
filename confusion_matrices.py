@@ -1,15 +1,13 @@
-
 import os
 
 import matplotlib
-matplotlib.use("Agg")  
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 import analysis as A
 
-# Prediction file and the column that identifies an image, per test set.
 SPLITS = {
     "test": ("test_predictions.csv", "md5hash"),
     "ddi": ("ddi_predictions.csv", "DDI_file"),
@@ -20,7 +18,6 @@ CLASSES = ["Benign", "Malignant"]
 
 
 def confusion_per_group(runs, split):
-    #Seed-averaged confusion matrix for every condition and FST group of one test set.
 
    
     filename, id_column = SPLITS[split]
@@ -30,7 +27,6 @@ def confusion_per_group(runs, split):
 
     rows = []
     for i, condition in enumerate(conditions):
-        # One prediction vector per seed, each with its own validation threshold.
         predictions = []
         for j, seed in enumerate(seeds):
             run_dir = runs[(runs.condition == condition) & (runs.seed == seed)].run_dir.iloc[0]
@@ -59,7 +55,7 @@ def confusion_per_group(runs, split):
 
 
 def draw_matrix(ax, row, show_ylabel=True, ylabel="True"):
-    """One confusion matrix. Colour shows the row percentage, text the percentage and mean count."""
+    """One confusion matrix."""
     counts = np.array([[row.tn, row.fp], [row.fn, row.tp]])
     rates = counts / counts.sum(axis=1, keepdims=True)
     ax.imshow(rates, cmap="Blues", vmin=0, vmax=1)
@@ -81,14 +77,12 @@ def draw_matrix(ax, row, show_ylabel=True, ylabel="True"):
 
 
 def plot(table, split, conditions, path_stem):
-    #Grid with one row per condition and one column per FST group
     plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 8})
     fig, axes = plt.subplots(len(conditions), 3, figsize=(7.0, 2.35 * len(conditions)), squeeze=False)
     for i, condition in enumerate(conditions):
         for j, group in enumerate(A.FST_GROUPS):
             row = table[(table.split == split) & (table.condition == condition) & (table.fst_group == group)].iloc[0]
             ax = axes[i, j]
-            # With several conditions, the condition is named once per row, next to the first matrix.
             ylabel = "True" if len(conditions) == 1 else f"{CONDITION_TITLES.get(condition, condition)}\n\nTrue"
             draw_matrix(ax, row, show_ylabel=(j == 0), ylabel=ylabel)
             ax.set_title(f"{GROUP_TITLES[group]} (n = {row.n_benign + row.n_malignant})", fontsize=8, pad=4)
@@ -99,8 +93,7 @@ def plot(table, split, conditions, path_stem):
 
 
 def save_figure(fig, path, **kwargs):
-    # Write to a temporary file first and then replace the old figure. On Windows,
-    # overwriting a figure that is open in a viewer or editor preview can fail.
+    # via a temporary file: on Windows a figure open in a viewer cannot be overwritten
     tmp = path.with_name(path.stem + "_tmp" + path.suffix)
     fig.savefig(tmp, **kwargs)
     try:

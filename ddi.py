@@ -1,4 +1,3 @@
-
 from pathlib import Path
 
 import numpy as np
@@ -10,13 +9,9 @@ DDI_DIR = A.path_setting("DDI_DIR", A.PROJECT_DIR.parent / "ddi_thesis_data")
 DDI_IMAGE_DIR = DDI_DIR / "images"
 DDI_METADATA = DDI_DIR / "ddi_metadata.csv"
 
-# DDI stores skin tone as 12, 34 or 56, which are the same three groups as in the thesis.
 SKIN_TONE_TO_GROUP = {12: "FST 1-2", 34: "FST 3-4", 56: "FST 5-6"}
 
-# Diagnoses that are left out in the sensitivity analysis. They are infectious,
-# inflammatory, traumatic or pigmentary conditions and not neoplasms. The training
-# data only contained benign and malignant neoplasms, so the models never saw
-# images like these. All of them are labelled non-malignant in DDI.
+# Non-neoplastic DDI diagnoses, left out in the sensitivity analysis.
 NON_NEOPLASTIC_DISEASES = {
     "verruca-vulgaris", "wart", "molluscum-contagiosum", "condyloma-accuminatum",
     "eczema-spongiotic-dermatitis", "abrasions-ulcerations-and-physical-injuries",
@@ -54,9 +49,6 @@ def describe(df):
     return t.astype(int)
 
 
-# ---------------------------------------------------------------------------
-# Prediction (needs PyTorch and the trained checkpoints)
-# ---------------------------------------------------------------------------
 def predict_run(run_dir, df, overwrite=False):
     """Score one finished run on all DDI images and save ddi_predictions.csv in its folder."""
     run_dir = Path(run_dir)
@@ -64,8 +56,7 @@ def predict_run(run_dir, df, overwrite=False):
     if out_path.is_file() and not overwrite:
         return out_path
 
-    # PyTorch is imported here and not at the top of the file, so that the
-    # analysis also works on a machine without it once the predictions exist.
+    # imported here so the analysis also runs without PyTorch
     import json
     import hashlib
     import torch
@@ -74,7 +65,6 @@ def predict_run(run_dir, df, overwrite=False):
     import training as T
 
     sel = json.loads((run_dir / "checkpoint_selection.json").read_text())
-    # Only the file name is used, so a run folder can be moved to another machine.
     ckpt = run_dir / Path(sel["checkpoint"].replace("\\", "/")).name
     assert hashlib.sha256(ckpt.read_bytes()).hexdigest() == sel["checkpoint_sha256"], f"Checkpoint changed: {ckpt}"
 
@@ -83,7 +73,6 @@ def predict_run(run_dir, df, overwrite=False):
             return len(df)
 
         def __getitem__(self, i):
-            # Same preprocessing as for the Fitzpatrick17k validation and test images.
             with Image.open(DDI_IMAGE_DIR / df.DDI_file.iloc[i]) as opened:
                 return T.eval_transform(opened.convert("RGB"))
 
@@ -101,7 +90,7 @@ def predict_run(run_dir, df, overwrite=False):
 
 
 def predict_all(df, overwrite=False):
-    """Run predict_run() for every finished run. Runs that already have predictions are skipped."""
+    """Run predict_run() for every finished run."""
     runs = A.finished_runs()
     for r in runs.itertuples():
         path = predict_run(r.run_dir, df, overwrite=overwrite)
@@ -109,9 +98,6 @@ def predict_all(df, overwrite=False):
     return runs
 
 
-# ---------------------------------------------------------------------------
-# Analysis (works without PyTorch once ddi_predictions.csv exists for every run)
-# ---------------------------------------------------------------------------
 def per_run_table(runs, exclude_non_neoplastic=False):
     """AUC statistics on DDI for every single run."""
     rows = []
@@ -126,11 +112,7 @@ def per_run_table(runs, exclude_non_neoplastic=False):
 
 
 def bootstrap(runs, exclude_non_neoplastic=False, n_boot=2000, rng_seed=0, reference="baseline"):
-    """Bootstrap intervals on DDI, with the same procedure as for the internal test set.
-
-    With exclude_non_neoplastic=True the non-neoplastic images are removed first
-    (sensitivity analysis). Returns the two tables of analysis.summarise_bootstrap().
-    """
+    """Bootstrap intervals on DDI, with the same procedure as for the internal test set."""
     conditions, seeds, base, probs = A.load_seed_predictions(runs, "ddi_predictions.csv", "DDI_file", reference)
     keep = ~base.non_neoplastic.to_numpy() if exclude_non_neoplastic else np.ones(len(base), bool)
     y, groups, probs = base.binary_label.to_numpy()[keep], base.fst_group.to_numpy()[keep], probs[:, :, keep]

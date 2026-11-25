@@ -1,15 +1,4 @@
-"""Stricter check of the one reliable effect: universal colour augmentation on DDI.
-
-Many comparisons were made in the thesis, so some 95% intervals can exclude zero
-by chance. This script repeats the paired bootstrap for universal colour versus
-the baseline with more resamples and also reports 99% intervals, for the AUC of
-FST V-VI and for the gap between FST I-II and FST V-VI. It does this for all DDI
-images and for the sensitivity analysis without the non-neoplastic images.
-
-    python stricter_interval_check.py
-
-Needs the DDI predictions of every run (07_ddi_external_evaluation.ipynb).
-"""
+"""95% and 99% intervals for the effect of universal colour augmentation on DDI."""
 import numpy as np
 
 import analysis as A

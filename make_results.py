@@ -1,14 +1,6 @@
-"""Build the results figure and the LaTeX tables of the thesis from the csv files in summary/.
+"""LaTeX tables and Fig. A2 from the csv files in summary/.
 
-    python make_results.py [summary_folder] [output_folder]
-
-Without arguments it reads summary/ and writes to figures/. Run 00_aggregate_results.ipynb and
-07_ddi_external_evaluation.ipynb first. The two tables of the threshold-based
-analysis are only written when threshold_analysis.py has been run as well.
-
-The table bodies are generated here. The captions in the thesis were extended
-by hand afterwards.
-"""
+    python make_results.py [summary_folder] [output_folder]"""
 import sys
 from pathlib import Path
 
@@ -34,7 +26,6 @@ NAMES = {
     "combined": "Combined",
 }
 
-# Column in the csv files and its header in the LaTeX tables.
 COLS = [
     ("auc", "Overall"),
     ("auc_fst_1_2", "FST I--II"),
@@ -45,9 +36,6 @@ COLS = [
 N_IMAGES = {"Fitzpatrick17k test set": 648, "DDI": 656}
 
 
-# ---------------------------------------------------------------------------
-# LaTeX tables
-# ---------------------------------------------------------------------------
 def tex_number(x, signed=False):
     """Three decimals, with a proper minus sign (and plus sign if signed) in math mode."""
     s = f"{x:+.3f}" if signed else f"{x:.3f}"
@@ -55,7 +43,7 @@ def tex_number(x, signed=False):
 
 
 def estimate_rows(estimates, differences):
-    """One table row per condition: value [low, high]. A star marks a reliable difference from the baseline."""
+    """One table row per condition: value [low, high]."""
     differences = differences.set_index("condition")
     rows = []
     for r in estimates.itertuples():
@@ -87,7 +75,7 @@ def difference_rows(differences):
 
 
 def latex_table(label, caption, header, blocks, note=None, column_spec="@{}llllll@{}"):
-    """A booktabs table. blocks is a list of (subheading, rows); a subheading of None is skipped."""
+    """A booktabs table."""
     n_columns = header.count("&") + 1
     body = []
     for i, (title, rows) in enumerate(blocks):
@@ -180,7 +168,6 @@ def write_threshold_tables(summary_dir, out_dir):
         column_spec="@{}lllll@{}")
     (out_dir / "table_threshold.tex").write_text(table_threshold, encoding="utf-8")
 
-    # Errors per diagnosis, for diagnoses with at least ten DDI images.
     errors = pd.read_csv(summary_dir / "threshold_ddi_errors_by_diagnosis.csv")
     errors = errors[errors.n >= 10]
     baseline = errors[errors.condition == "baseline"].set_index(["disease", "binary_label"])
@@ -210,14 +197,8 @@ def write_threshold_tables(summary_dir, out_dir):
     (out_dir / "table_ddi_errors.tex").write_text(table_errors, encoding="utf-8")
 
 
-# ---------------------------------------------------------------------------
-# Figure: paired differences from the baseline (Figure A2 of the thesis)
-# ---------------------------------------------------------------------------
 def plot_differences(differences, out_dir):
-    """Forest plot with one row per test set and one panel per statistic.
-
-    A filled marker means that the 95% interval of the difference excludes zero.
-    """
+    """Forest plot with one row per test set and one panel per statistic."""
     ink, muted, grid, blue = "#0b0b0b", "#52514e", "#e1e0d9", "#2a78d6"
     plt.rcParams.update({
         "font.family": "DejaVu Sans", "font.size": 8, "axes.edgecolor": muted, "axes.linewidth": 0.6,
@@ -248,7 +229,6 @@ def plot_differences(differences, out_dir):
             ax.tick_params(axis="y", length=0)
             ax.tick_params(axis="x", length=2, labelsize=7)
             ax.set_title(title, fontsize=8, pad=4)
-        # The differences on DDI are larger, so the two rows get their own x-axis range.
         limit = 0.05 if i == 0 else 0.15
         axes[i, 0].set_xlim(-limit, limit)
         for ax in axes[i]:

@@ -1,12 +1,4 @@
-"""Threshold-based follow-up analysis: sensitivity and specificity per FST group.
-
-
-Needs the finished runs and their DDI predictions (07_ddi_external_evaluation.ipynb).
-Writes to summary/:
-
-    threshold_sens_spec.csv                 sensitivity and specificity per condition and group
-    threshold_ddi_errors_by_diagnosis.csv   error rate per DDI diagnosis (baseline and universal colour)
-"""
+"""Sensitivity and specificity per FST group at the validation-chosen threshold."""
 import numpy as np
 import pandas as pd
 
@@ -15,7 +7,6 @@ import analysis as A
 N_BOOT = 2000
 RNG_SEED = 0
 
-# Prediction file and the column that identifies an image, per test set.
 SPLITS = {
     "test": ("test_predictions.csv", "md5hash"),
     "ddi": ("ddi_predictions.csv", "DDI_file"),
@@ -23,11 +14,7 @@ SPLITS = {
 
 
 def load_binary_predictions(runs, split):
-    """Predicted labels (0 or 1) of all conditions and seeds at their validation threshold.
-
-    Returns (conditions, base, predictions) with predictions of the shape
-    (n_conditions, n_seeds, n_images).
-    """
+    """Predicted labels (0 or 1) of all conditions and seeds at their validation threshold."""
     filename, id_column = SPLITS[split]
     conditions, seeds, base, probs = A.load_seed_predictions(runs, filename, id_column)
     predictions = np.empty_like(probs)
@@ -41,11 +28,7 @@ def load_binary_predictions(runs, split):
 
 
 def sens_spec(y, masks, predictions, idx):
-    """Seed-averaged sensitivity and specificity on the images in idx.
-
-    Returns an array of the shape (n_conditions, n_groups, 2), with sensitivity
-    first and specificity second.
-    """
+    """Seed-averaged sensitivity and specificity on the images in idx."""
     yi, pi = y[idx], predictions[:, :, idx]
     out = np.empty((predictions.shape[0], len(masks), 2))
     for g, mask in enumerate(masks.values()):
@@ -64,7 +47,6 @@ def analyse_split(runs, split):
     masks = {"Overall": np.ones(len(y), bool), **{g: groups == g for g in A.FST_GROUPS}}
 
     point = sens_spec(y, masks, predictions, np.arange(len(y)))
-    # Resample within FST group x label, exactly as in analysis.bootstrap_auc().
     strata = [np.where((groups == g) & (y == c))[0] for g in A.FST_GROUPS for c in (0, 1)]
     rng = np.random.default_rng(RNG_SEED)
     boots = np.empty((N_BOOT, *point.shape))
