@@ -1,17 +1,4 @@
-"""Dataset statistics that are reported in the thesis (Sections II and III-A).
 
-    python describe_data.py
-
-Prints and saves summary/data_description.csv with:
-  - the size of Fitzpatrick17k, the number of conditions and the three label groups,
-  - the images without a skin-type label, and the skin-type distribution of the labelled images,
-  - the benign/malignant subset that was used, per FST group,
-  - the sizes of the train, validation and test split and the test images per group and label,
-  - the size of the images in the subset (median width and height, and how many are smaller
-    than 256 pixels on one side). This part needs the image files and is skipped without them.
-
-Needs fitzpatrick17k.csv in the project folder (see make_splits.py) and the split files.
-"""
 import numpy as np
 import pandas as pd
 
