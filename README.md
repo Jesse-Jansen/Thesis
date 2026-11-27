@@ -64,6 +64,24 @@ pip install -r requirements.txt
 
 The experiments were run with PyTorch 2.8.0 and CUDA 12.6 on an NVIDIA RTX A1000 laptop GPU.
 
+## Running
+
+Folders are set with environment variables or a `local_paths.json` in this folder
+(keys: `FITZPATRICK17K_DIR`, `DDI_DIR`, `THESIS_EXPERIMENTS_DIR`). Expected layout:
+
+```
+FITZPATRICK17K_DIR/fitzpatrick17k.csv
+FITZPATRICK17K_DIR/data/finalfitz17k/<md5hash>.jpg
+DDI_DIR/ddi_metadata.csv
+DDI_DIR/images/
+```
+
+1. `python make_splits.py` creates the 70/15/15 split (checked against the thesis split by SHA-256).
+2. Run notebooks `01_` to `06_` to train the three seeds per condition (GPU recommended).
+3. Run `00_aggregate_results.ipynb` and `07_ddi_external_evaluation.ipynb`.
+4. Run `threshold_analysis.py`, `stricter_interval_check.py`, `confusion_matrices.py`,
+   `describe_data.py` and `make_results.py`.
+
 ## References
 
 - Cui, Y., Jia, M., Lin, T.-Y., Song, Y., & Belongie, S. (2019). Class-balanced loss based on effective number of samples. *CVPR*.
